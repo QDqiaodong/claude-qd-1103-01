@@ -40,19 +40,22 @@ public class CupOrderService {
     private final MemberRepository memberRepository;
     private final IngredientRepository ingredientRepository;
     private final CupOrderFailureRecorder failureRecorder;
+    private final PointsLedgerService pointsLedgerService;
 
     public CupOrderService(CupOrderRepository cupOrderRepository,
                            CupOrderFailureRepository failureRepository,
                            RecipeRepository recipeRepository,
                            MemberRepository memberRepository,
                            IngredientRepository ingredientRepository,
-                           CupOrderFailureRecorder failureRecorder) {
+                           CupOrderFailureRecorder failureRecorder,
+                           PointsLedgerService pointsLedgerService) {
         this.cupOrderRepository = cupOrderRepository;
         this.failureRepository = failureRepository;
         this.recipeRepository = recipeRepository;
         this.memberRepository = memberRepository;
         this.ingredientRepository = ingredientRepository;
         this.failureRecorder = failureRecorder;
+        this.pointsLedgerService = pointsLedgerService;
     }
 
     public List<CupOrder> list(String status) {
@@ -148,19 +151,13 @@ public class CupOrderService {
                 plan.needByName.values().stream().map(l -> l.ingredient).toList());
 
         int pointsEarned = 0;
-        if (plan.member != null) {
-            pointsEarned = plan.total.multiply(BigDecimal.valueOf(Dict.POINTS_PER_YUAN)).intValue();
-            plan.member.points = plan.member.points + pointsEarned;
-            plan.member.level = Dict.decideMemberLevel(plan.member.points);
-            memberRepository.save(plan.member);
-        }
 
         CupOrder order = new CupOrder();
         order.memberId = plan.memberId;
+        order.originMemberId = plan.memberId;
         order.payType = plan.payType;
         order.total = plan.total;
         order.status = "已出杯";
-        order.pointsEarned = pointsEarned;
         order.createdAt = LocalDateTime.now();
         for (Map.Entry<Long, Integer> e : plan.recipeCups.entrySet()) {
             CupOrderItem item = new CupOrderItem();
@@ -173,7 +170,19 @@ public class CupOrderService {
             snap.order = order;
             order.deductions.add(snap);
         }
-        return cupOrderRepository.save(order);
+        // 先落订单（拿到订单 id），积分流水才能以订单号为 refId 入账
+        order = cupOrderRepository.save(order);
+
+        if (plan.member != null) {
+            pointsEarned = plan.total.multiply(BigDecimal.valueOf(Dict.POINTS_PER_YUAN)).intValue();
+            order.pointsEarned = pointsEarned;
+            pointsLedgerService.append(plan.member, Dict.LEDGER_EARN, pointsEarned,
+                    "ORDER", order.id, "订单#" + order.id + " 消费累计积分", "系统");
+            plan.member.level = Dict.decideMemberLevel(plan.member.points);
+            memberRepository.save(plan.member);
+            cupOrderRepository.save(order);
+        }
+        return order;
     }
 
     // ============================ 退款 ============================
@@ -218,12 +227,18 @@ public class CupOrderService {
         }
 
         int rollback = (order.pointsEarned == null) ? 0 : order.pointsEarned;
-        if (order.memberId != null) {
-            Member member = memberRepository.findByIdForUpdate(order.memberId);
+        if (order.memberId != null && rollback != 0) {
+            Member member = memberRepository.findByIdForUpdate(order.memberId).orElse(null);
             if (member == null) {
                 throw new BizException("关联会员不存在：" + order.memberId);
             }
-            member.points = Math.max(0, member.points - rollback);
+            if ("已合并".equals(member.status)) {
+                throw new BizException("订单归属会员已合并归档，无法在原档回退积分，请在主档处理");
+            }
+            // origin 取订单原始会员：合并后退款的流水也能在撤销合并时回到原档
+            Long origin = order.originMemberId != null ? order.originMemberId : order.memberId;
+            pointsLedgerService.append(member, origin, Dict.LEDGER_REFUND, -rollback,
+                    "ORDER", order.id, "订单#" + order.id + " 退款回退积分", "系统");
             member.level = Dict.decideMemberLevel(member.points);
             memberRepository.save(member);
         }
@@ -311,11 +326,15 @@ public class CupOrderService {
         // 3) 解析会员（下单加锁）
         if (req.memberId != null) {
             Member member = locking
-                    ? memberRepository.findByIdForUpdate(req.memberId)
+                    ? memberRepository.findByIdForUpdate(req.memberId).orElse(null)
                     : memberRepository.findById(req.memberId).orElse(null);
             if (member == null) {
                 plan.problems.add("关联会员不存在：" + req.memberId);
                 plan.memberLabel = "会员#" + req.memberId + "（已失效）";
+            } else if ("已合并".equals(member.status)) {
+                plan.problems.add("会员#" + req.memberId + " 已合并归档，请选择其主档#"
+                        + member.mergedIntoId + " 下单");
+                plan.memberLabel = member.name + "（已合并→主档#" + member.mergedIntoId + "）";
             } else {
                 plan.member = member;
                 plan.memberLabel = member.name + "（" + member.phone + "）";

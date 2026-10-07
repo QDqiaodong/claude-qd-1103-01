@@ -38,6 +38,10 @@ public class CupOrder {
     @Column(name = "member_id")
     public Long memberId;
 
+    /** 下单时原始会员 id：合并后 member_id 归主档，撤销时按本字段还原归属 */
+    @Column(name = "origin_member_id")
+    public Long originMemberId;
+
     @Column(name = "pay_type", nullable = false, length = 16)
     public String payType;
 

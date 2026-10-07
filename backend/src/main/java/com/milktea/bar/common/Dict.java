@@ -24,6 +24,48 @@ public final class Dict {
     // ---------------- 会员 member ----------------
     public static final List<String> MEMBER_LEVELS = List.of("普通", "银卡", "金卡");
 
+    /** 会员档案状态：有效 / 已合并（已合并档为只读别名，可追溯到主档） */
+    public static final String MEMBER_ACTIVE = "有效";
+    public static final String MEMBER_MERGED = "已合并";
+
+    /** 操作角色：负责人才能发起撤销合并、解决冲突 */
+    public static final String ROLE_STAFF = "店员";
+    public static final String ROLE_MANAGER = "负责人";
+    public static final List<String> OPERATOR_ROLES = List.of(ROLE_STAFF, ROLE_MANAGER);
+
+    // ---------------- 会员合并工单 ----------------
+    /** 待处理（店员已标记，等待预览后执行合并） */
+    public static final String MERGE_PENDING = "PENDING";
+    /** 冲突待处理（手机号冲突 / 积分来源对不上，必须显式解决） */
+    public static final String MERGE_CONFLICT = "CONFLICT";
+    /** 已合并 */
+    public static final String MERGE_MERGED = "MERGED";
+    /** 已撤销（仅负责人发起，积分不重复计算地还原归属） */
+    public static final String MERGE_REVOKED = "REVOKED";
+    public static final List<String> MERGE_STATUSES =
+            List.of(MERGE_PENDING, MERGE_CONFLICT, MERGE_MERGED, MERGE_REVOKED);
+
+    public static final String CONFLICT_PHONE = "PHONE_CONFLICT";
+    public static final String CONFLICT_POINTS = "POINTS_SOURCE";
+
+    /** 积分来源冲突解决策略：以当前余额为准补一条调平流水 / 以流水合计重建余额 */
+    public static final String POINTS_STRATEGY_TRUST_BALANCE = "TRUST_BALANCE";
+    public static final String POINTS_STRATEGY_REBUILD_LEDGER = "REBUILD_FROM_LEDGER";
+    public static final List<String> POINTS_STRATEGIES =
+            List.of(POINTS_STRATEGY_TRUST_BALANCE, POINTS_STRATEGY_REBUILD_LEDGER);
+
+    // ---------------- 积分流水类型 ----------------
+    public static final String LEDGER_OPENING = "OPENING";
+    public static final String LEDGER_EARN = "EARN";
+    public static final String LEDGER_REFUND = "REFUND";
+    public static final String LEDGER_MANUAL = "MANUAL";
+    public static final String LEDGER_MERGE_MARK = "MERGE_MARK";
+    public static final String LEDGER_REVOKE_MARK = "REVOKE_MARK";
+
+    // ---------------- 联系方式变更字段 ----------------
+    public static final String FIELD_PHONE = "PHONE";
+    public static final String FIELD_NAME = "NAME";
+
     /** 会员累计积分升级阈值（达到即升级） */
     public static final int SILVER_POINTS = 500;
 
@@ -58,6 +100,19 @@ public final class Dict {
 
     public static boolean isValidMemberLevel(String level) {
         return level != null && MEMBER_LEVELS.contains(level);
+    }
+
+    public static boolean isValidMergeStatus(String status) {
+        return status != null && MERGE_STATUSES.contains(status);
+    }
+
+    public static boolean isValidPointsStrategy(String strategy) {
+        return strategy != null && POINTS_STRATEGIES.contains(strategy);
+    }
+
+    /** 手机号基本形态：11 位数字、1 开头（页面/接口层的轻校验，唯一性以服务端守卫为准） */
+    public static boolean isValidPhone(String phone) {
+        return phone != null && phone.matches("1\\d{10}");
     }
 
     /** 按累计积分自动判定会员等级 */

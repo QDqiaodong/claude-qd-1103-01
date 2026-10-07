@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '/api', timeout: 20000 })
+const http = axios.create({ baseURL: '/api', timeout: 30000 })
 
 http.interceptors.response.use(
   (response) => response,
@@ -35,10 +35,29 @@ export default {
   updateRecipe: (id, d) => call(http.put(`/recipes/${id}`, d)),
 
   // ---------------- 会员 ----------------
-  listMembers: (level) => call(http.get('/members', params(level ? { level } : {}))),
+  listMembers: (level, status) =>
+    call(http.get('/members', params({
+      ...(level ? { level } : {}),
+      ...(status ? { status } : {})
+    }))),
   createMember: (d) => call(http.post('/members', d)),
   updateMember: (id, d) => call(http.put(`/members/${id}`, d)),
-  addMemberPoints: (id, delta) => call(http.post(`/members/${id}/points`, null, params({ delta }))),
+  // 旧积分接口已下线（积分必须带流水/原因），保留兼容映射到新入口
+  addMemberPoints: (id, delta, extra = {}) =>
+    call(http.post(`/members/${id}/points-adjust`, { delta, reason: '人工调整积分', ...extra })),
+  adjustMemberPoints: (id, d) => call(http.post(`/members/${id}/points-adjust`, d)),
+  changeMemberContact: (id, d) => call(http.post(`/members/${id}/contact-change`, d)),
+  memberProfile: (id) => call(http.get(`/members/${id}/profile`)),
+  importLegacyMember: (d) => call(http.post('/members/legacy-import', d)),
+
+  // ---------------- 会员合并工单 ----------------
+  listMerges: (status) =>
+    call(http.get('/member-merges', params(status ? { status } : {}))),
+  mergeDetail: (id) => call(http.get(`/member-merges/${id}`)),
+  markMerge: (d) => call(http.post('/member-merges', d)),
+  resolveMerge: (id, d) => call(http.post(`/member-merges/${id}/resolve`, d)),
+  executeMerge: (id, d) => call(http.post(`/member-merges/${id}/execute`, d)),
+  revokeMerge: (id, d) => call(http.post(`/member-merges/${id}/revoke`, d)),
 
   // ---------------- 出杯记录 ----------------
   listCupOrders: (status) => call(http.get('/cup-orders', params(status ? { status } : {}))),

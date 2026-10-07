@@ -6,16 +6,18 @@ import api from './api'
 import IngredientView from './views/IngredientView.vue'
 import RecipeView from './views/RecipeView.vue'
 import MemberView from './views/MemberView.vue'
+import MergeView from './views/MergeView.vue'
 import CupOrderView from './views/CupOrderView.vue'
 
 // ------------------------------------------------------------------
-// 导航形态：顶部标签页（el-tabs），4 个业务模块各一个 tab。
+// 导航形态：顶部标签页（el-tabs），5 个业务模块各一个 tab。
 // ------------------------------------------------------------------
 
 const modules = [
   { path: '/ingredient', label: '原料库存', sub: '茶底 / 奶 / 小料 / 糖浆', comp: IngredientView },
   { path: '/recipe',     label: '配方出单', sub: '勾选小料 · 抽屉调份数', comp: RecipeView },
-  { path: '/member',     label: '会员',     sub: '积分 · 等级', comp: MemberView },
+  { path: '/member',     label: '会员',     sub: '积分 · 等级 · 联系方式审计', comp: MemberView },
+  { path: '/member-merge', label: '会员合并', sub: '待处理 / 冲突 / 已合并 / 已撤销', comp: MergeView },
   { path: '/cup-order',  label: '出杯记录', sub: '微信 / 支付宝 / 现金', comp: CupOrderView }
 ]
 
@@ -29,14 +31,16 @@ const currentView = computed(() => {
 
 async function loadCounts() {
   try {
-    const [ing, rec, mem, ord] = await Promise.all([
+    const [ing, rec, mem, ord, pending, conflict] = await Promise.all([
       api.listIngredients(), api.listRecipes(),
-      api.listMembers(), api.listCupOrders()
+      api.listMembers(), api.listCupOrders(),
+      api.listMerges('PENDING'), api.listMerges('CONFLICT')
     ])
     counts.value = {
       '/ingredient': ing.length,
       '/recipe': rec.length,
       '/member': mem.length,
+      '/member-merge': pending.length + conflict.length,
       '/cup-order': ord.length
     }
   } catch (e) { /* 计数失败不影响主流程 */ }

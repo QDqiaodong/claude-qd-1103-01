@@ -3,6 +3,7 @@ package com.milktea.bar.common;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,12 +53,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 悲观锁等待/冲突：并发争用同一原料或订单时后到的事务得到稳定提示
+     * 悲观锁等待/冲突：并发争用同一会员/工单/原料时后到的事务得到稳定提示
      */
     @ExceptionHandler(PessimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleLock(PessimisticLockingFailureException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.fail("当前操作与其他出杯/退款并发冲突，请刷新库存后重试"));
+                .body(ApiResponse.fail("当前操作与其他会员合并/改手机号/出杯操作并发冲突，请刷新后重试"));
+    }
+
+    /**
+     * 乐观版本冲突：页面持有的档案/工单版本已过期，服务端拒绝覆盖最新数据
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimistic(OptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.fail("数据已被其他人修改（版本不一致），请刷新后重试，禁止覆盖最新数据"));
     }
 
     /**

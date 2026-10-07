@@ -33,6 +33,9 @@ const memberMap = computed(() => {
   return m
 })
 
+// 下单只能选有效会员；已合并别名在后端也会被拒绝并提示其主档
+const activeMembers = computed(() => members.value.filter(m => m.status === '有效'))
+
 async function load() {
   const [ords, fails, recs, mems] = await Promise.all([
     api.listCupOrders(filter.status || undefined),
@@ -254,7 +257,7 @@ onBeforeUnmount(() => { if (previewTimer) clearTimeout(previewTimer) })
       <el-form label-width="80px">
         <el-form-item label="会员">
           <el-select v-model="draft.memberId" clearable placeholder="散客（不选）" style="width:100%">
-            <el-option v-for="m in members" :key="m.id" :label="m.name + '（' + m.phone + '）'" :value="m.id" />
+            <el-option v-for="m in activeMembers" :key="m.id" :label="m.name + '（' + m.phone + '）'" :value="m.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="支付">
