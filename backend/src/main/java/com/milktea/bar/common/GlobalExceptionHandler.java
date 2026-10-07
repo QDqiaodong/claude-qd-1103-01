@@ -52,12 +52,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 悲观锁等待/冲突：并发争用同一原料或订单时后到的事务得到稳定提示
+     * 悲观锁等待/冲突：并发争用同一原料/会员/合并单时后到的事务得到稳定提示
      */
     @ExceptionHandler(PessimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleLock(PessimisticLockingFailureException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.fail("当前操作与其他出杯/退款并发冲突，请刷新库存后重试"));
+                .body(ApiResponse.fail("当前操作与其他出杯/退款/会员合并并发冲突，请刷新后重试"));
+    }
+
+    /**
+     * 乐观锁版本冲突：会员/合并单已被并发事务改到更新版本，本次修改以最新版本校验后拒绝
+     */
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimistic(
+            org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.fail("该档案已被其他人修改（版本过期），请刷新最新数据后重试"));
     }
 
     /**

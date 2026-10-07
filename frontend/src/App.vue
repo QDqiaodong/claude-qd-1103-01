@@ -15,7 +15,7 @@ import CupOrderView from './views/CupOrderView.vue'
 const modules = [
   { path: '/ingredient', label: '原料库存', sub: '茶底 / 奶 / 小料 / 糖浆', comp: IngredientView },
   { path: '/recipe',     label: '配方出单', sub: '勾选小料 · 抽屉调份数', comp: RecipeView },
-  { path: '/member',     label: '会员',     sub: '积分 · 等级', comp: MemberView },
+  { path: '/member',     label: '会员',     sub: '积分 · 档案合并 · 变更审计', comp: MemberView },
   { path: '/cup-order',  label: '出杯记录', sub: '微信 / 支付宝 / 现金', comp: CupOrderView }
 ]
 

@@ -1,134 +1,65 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import api from '../api'
+import MemberArchivePane from './member/MemberArchivePane.vue'
+import MemberMergePane from './member/MemberMergePane.vue'
 
-const list = ref([])
-const dialogVisible = ref(false)
-const editing = ref(false)
-const form = reactive({ id: null, phone: '', name: '', points: 0, level: '普通' })
-const filter = reactive({ level: '' })
+// 顶部身份：店员可发起合并，只有负责人能撤销合并
+const operatorName = ref(localStorage.getItem('mt_operator') || '店员小美')
+const operatorRole = ref(localStorage.getItem('mt_operator_role') || '店员')
+const activePane = ref('archive')
+const archiveRef = ref(null)
+const mergeRef = ref(null)
 
-const levels = ['普通', '银卡', '金卡']
+const isOwner = computed(() => operatorRole.value === '负责人')
 
-async function load() {
-  list.value = await api.listMembers(filter.level || undefined)
+function onIdentityChange() {
+  localStorage.setItem('mt_operator', operatorName.value)
+  localStorage.setItem('mt_operator_role', operatorRole.value)
+  ElMessage.success('已切换身份：' + operatorRole.value + ' · ' + operatorName.value)
 }
 
-function resetForm() {
-  form.id = null
-  form.phone = ''
-  form.name = ''
-  form.points = 0
-  form.level = '普通'
+function refreshAll() {
+  archiveRef.value?.load()
+  mergeRef.value?.load()
 }
 
-function openCreate() {
-  editing.value = false
-  resetForm()
-  dialogVisible.value = true
-}
+defineExpose({ refreshAll })
 
-function openEdit(row) {
-  editing.value = true
-  Object.assign(form, row)
-  dialogVisible.value = true
-}
-
-async function submit() {
-  try {
-    if (editing.value) {
-      await api.updateMember(form.id, { name: form.name, points: form.points, level: form.level })
-      ElMessage.success('已更新会员')
-    } else {
-      await api.createMember({ ...form })
-      ElMessage.success('已新增会员')
-    }
-    dialogVisible.value = false
-    await load()
-    emit('changed')
-  } catch (e) {
-    ElMessage.error(e.message)
-  }
-}
-
-async function adjustPoints(row) {
-  try {
-    const { value } = await ElMessageBox.prompt('输入积分变动（正为充值，负为扣减）', '调整积分 · ' + row.name, {
-      inputPattern: /^-?\d+$/,
-      inputErrorMessage: '请输入整数'
-    })
-    await api.addMemberPoints(row.id, parseInt(value, 10))
-    ElMessage.success('积分已更新')
-    await load()
-    emit('changed')
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error(e.message)
-  }
-}
-
-const emit = defineEmits(['changed'])
-
-onMounted(load)
+onMounted(() => {})
 </script>
 
 <template>
   <div>
-    <div class="bar">
-      <div class="filters">
-        <el-select v-model="filter.level" placeholder="等级" clearable @change="load" style="width:160px">
-          <el-option v-for="l in levels" :key="l" :label="l" :value="l" />
-        </el-select>
-      </div>
-      <el-button type="primary" @click="openCreate">新增会员</el-button>
+    <div class="identity-bar">
+      <span class="identity-label">当前操作人</span>
+      <el-select v-model="operatorRole" style="width:110px" @change="onIdentityChange">
+        <el-option label="店员" value="店员" />
+        <el-option label="负责人" value="负责人" />
+      </el-select>
+      <el-input v-model="operatorName" style="width:160px" placeholder="操作人姓名" @change="onIdentityChange" />
+      <el-tag v-if="isOwner" type="danger" size="small">可撤销合并</el-tag>
+      <el-tag v-else type="info" size="small">仅负责人可撤销</el-tag>
     </div>
 
-    <el-table :data="list" border stripe>
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="phone" label="手机号" width="140" />
-      <el-table-column prop="name" label="昵称" />
-      <el-table-column prop="points" label="积分" width="90" sortable />
-      <el-table-column prop="level" label="等级" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.level === '金卡' ? 'warning' : (row.level === '银卡' ? 'success' : 'info')">
-            {{ row.level }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="180">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="primary" @click="adjustPoints(row)">调积分</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑会员' : '新增会员'" width="420px">
-      <el-form label-width="80px">
-        <el-form-item label="手机号">
-          <el-input v-model="form.phone" :disabled="editing" placeholder="11 位手机号" />
-        </el-form-item>
-        <el-form-item label="昵称">
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="积分">
-          <el-input-number v-model="form.points" :min="0" />
-        </el-form-item>
-        <el-form-item label="等级">
-          <el-select v-model="form.level" style="width:100%">
-            <el-option v-for="l in levels" :key="l" :label="l" :value="l" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">保存</el-button>
-      </template>
-    </el-dialog>
+    <el-tabs v-model="activePane" class="member-tabs">
+      <el-tab-pane label="会员档案" name="archive">
+        <MemberArchivePane ref="archiveRef" :operator-name="operatorName" :operator-role="operatorRole" @changed="refreshAll" />
+      </el-tab-pane>
+      <el-tab-pane label="档案合并与审计" name="merge">
+        <MemberMergePane ref="mergeRef" :operator-name="operatorName" :operator-role="operatorRole" @changed="refreshAll" />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <style scoped>
-.bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.filters { display: flex; gap: 10px; }
+.identity-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 12px; padding: 8px 12px;
+  background: #fff8f2; border: 1px solid #f0d9c4; border-radius: 8px;
+}
+.identity-label { font-size: 13px; color: #8a5a3a; }
+.member-tabs { background: transparent; }
 </style>

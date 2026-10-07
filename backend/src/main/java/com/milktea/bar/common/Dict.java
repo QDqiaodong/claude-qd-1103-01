@@ -24,6 +24,67 @@ public final class Dict {
     // ---------------- 会员 member ----------------
     public static final List<String> MEMBER_LEVELS = List.of("普通", "银卡", "金卡");
 
+    /** 会员档案状态：有效 / 已合并（已合并档只读保留别名） */
+    public static final String MEMBER_ACTIVE = "有效";
+
+    public static final String MEMBER_MERGED = "已合并";
+
+    public static final List<String> MEMBER_STATUS = List.of(MEMBER_ACTIVE, MEMBER_MERGED);
+
+    /** 操作人员角色：店员可发起合并，只有负责人能撤销合并 */
+    public static final String ROLE_STAFF = "店员";
+
+    public static final String ROLE_OWNER = "负责人";
+
+    // ---------------- 积分流水 member_points_ledger ----------------
+    public static final String LEDGER_OPENING = "期初";
+
+    public static final String LEDGER_EARN = "消费获得";
+
+    public static final String LEDGER_REFUND = "退款回退";
+
+    public static final String LEDGER_MANUAL = "手工调整";
+
+    public static final List<String> LEDGER_TYPES =
+            List.of(LEDGER_OPENING, LEDGER_EARN, LEDGER_REFUND, LEDGER_MANUAL);
+
+    // ---------------- 会员合并 member_merge_request ----------------
+    /** 合并单状态：待处理 / 冲突待处理 / 已合并 / 已撤销 */
+    public static final String MERGE_PENDING = "待处理";
+
+    public static final String MERGE_CONFLICT = "冲突待处理";
+
+    public static final String MERGE_MERGED = "已合并";
+
+    public static final String MERGE_REVOKED = "已撤销";
+
+    public static final List<String> MERGE_STATUS =
+            List.of(MERGE_PENDING, MERGE_CONFLICT, MERGE_MERGED, MERGE_REVOKED);
+
+    /** 合并角色：保留的主档 / 并入的副档 */
+    public static final String MERGE_ROLE_MASTER = "主档";
+
+    public static final String MERGE_ROLE_ALIAS = "副档";
+
+    /** 合并迁移的订单状态：已迁移 / 撤销后已恢复 */
+    public static final String MERGE_ORDER_MIGRATED = "已迁移";
+
+    public static final String MERGE_ORDER_RESTORED = "已恢复";
+
+    /** 合并单审计事件 */
+    public static final List<String> MERGE_EVENTS =
+            List.of("创建", "冲突待处理", "合并成功", "撤销合并", "重新检查");
+
+    /** 冲突类型（可并列，用「、」连接） */
+    public static final String CONFLICT_PHONE = "手机号冲突";
+
+    public static final String CONFLICT_POINTS = "积分来源冲突";
+
+    // ---------------- 联系方式变更审计 member_contact_audit ----------------
+    public static final String FIELD_PHONE = "手机号";
+
+    public static final String FIELD_NAME = "姓名";
+
     /** 会员累计积分升级阈值（达到即升级） */
     public static final int SILVER_POINTS = 500;
 
@@ -58,6 +119,14 @@ public final class Dict {
 
     public static boolean isValidMemberLevel(String level) {
         return level != null && MEMBER_LEVELS.contains(level);
+    }
+
+    public static boolean isValidMemberStatus(String status) {
+        return status != null && MEMBER_STATUS.contains(status);
+    }
+
+    public static boolean isValidMergeStatus(String status) {
+        return status != null && MERGE_STATUS.contains(status);
     }
 
     /** 按累计积分自动判定会员等级 */

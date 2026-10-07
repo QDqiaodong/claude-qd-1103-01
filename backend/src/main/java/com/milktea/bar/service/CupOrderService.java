@@ -40,19 +40,22 @@ public class CupOrderService {
     private final MemberRepository memberRepository;
     private final IngredientRepository ingredientRepository;
     private final CupOrderFailureRecorder failureRecorder;
+    private final PointsLedgerService ledgerService;
 
     public CupOrderService(CupOrderRepository cupOrderRepository,
                            CupOrderFailureRepository failureRepository,
                            RecipeRepository recipeRepository,
                            MemberRepository memberRepository,
                            IngredientRepository ingredientRepository,
-                           CupOrderFailureRecorder failureRecorder) {
+                           CupOrderFailureRecorder failureRecorder,
+                           PointsLedgerService ledgerService) {
         this.cupOrderRepository = cupOrderRepository;
         this.failureRepository = failureRepository;
         this.recipeRepository = recipeRepository;
         this.memberRepository = memberRepository;
         this.ingredientRepository = ingredientRepository;
         this.failureRecorder = failureRecorder;
+        this.ledgerService = ledgerService;
     }
 
     public List<CupOrder> list(String status) {
@@ -147,12 +150,10 @@ public class CupOrderService {
         ingredientRepository.saveAll(
                 plan.needByName.values().stream().map(l -> l.ingredient).toList());
 
+        // —— 先落订单（会员积分流水需要订单号作为关联），全部在同一事务内提交 ——
         int pointsEarned = 0;
         if (plan.member != null) {
             pointsEarned = plan.total.multiply(BigDecimal.valueOf(Dict.POINTS_PER_YUAN)).intValue();
-            plan.member.points = plan.member.points + pointsEarned;
-            plan.member.level = Dict.decideMemberLevel(plan.member.points);
-            memberRepository.save(plan.member);
         }
 
         CupOrder order = new CupOrder();
@@ -173,7 +174,16 @@ public class CupOrderService {
             snap.order = order;
             order.deductions.add(snap);
         }
-        return cupOrderRepository.save(order);
+        cupOrderRepository.save(order);
+
+        if (plan.member != null) {
+            // 积分与流水同事务落库（会员行已在 buildPlan 中加锁），余额恒等于流水合计
+            ledgerService.append(plan.member, pointsEarned, Dict.LEDGER_EARN, "订单", order.id,
+                    null, null);
+            plan.member.level = Dict.decideMemberLevel(plan.member.points);
+            memberRepository.save(plan.member);
+        }
+        return order;
     }
 
     // ============================ 退款 ============================
@@ -218,13 +228,21 @@ public class CupOrderService {
         }
 
         int rollback = (order.pointsEarned == null) ? 0 : order.pointsEarned;
-        if (order.memberId != null) {
+        if (order.memberId != null && rollback > 0) {
             Member member = memberRepository.findByIdForUpdate(order.memberId);
             if (member == null) {
                 throw new BizException("关联会员不存在：" + order.memberId);
             }
-            member.points = Math.max(0, member.points - rollback);
+            // 退款回退记流水；若历史余额不足则拒绝，避免出现负积分
+            if (member.points - rollback < 0) {
+                throw new BizException("会员当前积分 " + member.points + " 不足回退 "
+                        + rollback + "，退款中止（请人工核实积分来源）");
+            }
+            ledgerService.append(member, -rollback, Dict.LEDGER_REFUND, "订单", order.id,
+                    null, null);
+            member.points = Math.max(0, member.points);
             member.level = Dict.decideMemberLevel(member.points);
+            memberRepository.save(member);
             memberRepository.save(member);
         }
 
@@ -316,6 +334,10 @@ public class CupOrderService {
             if (member == null) {
                 plan.problems.add("关联会员不存在：" + req.memberId);
                 plan.memberLabel = "会员#" + req.memberId + "（已失效）";
+            } else if ("已合并".equals(member.status)) {
+                plan.problems.add("会员#" + req.memberId + " 已合并到主档会员#"
+                        + member.mergedToId + "，请选择主档下单");
+                plan.memberLabel = member.name + "（" + member.phone + "，已合并）";
             } else {
                 plan.member = member;
                 plan.memberLabel = member.name + "（" + member.phone + "）";

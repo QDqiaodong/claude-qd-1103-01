@@ -18,7 +18,13 @@ public interface CupOrderRepository extends JpaRepository<CupOrder, Long> {
 
     List<CupOrder> findAllByOrderByCreatedAtDescIdDesc();
 
-    List<CupOrder> findByMemberId(Long memberId);
+    List<CupOrder> findByMemberIdOrderByIdAsc(Long memberId);
+
+    long countByMemberId(Long memberId);
+
+    /** 合并预览/执行时统计副档名下历史订单（含已退款，散客 NULL 不在此列） */
+    @Query("SELECT o.id FROM CupOrder o WHERE o.memberId = :memberId ORDER BY o.id ASC")
+    List<Long> findIdsByMemberId(@Param("memberId") Long memberId);
 
     /** 退款时对订单行加写锁，重复/并发退款只能有一个事务进入“已出杯”分支 */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

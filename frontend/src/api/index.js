@@ -35,10 +35,25 @@ export default {
   updateRecipe: (id, d) => call(http.put(`/recipes/${id}`, d)),
 
   // ---------------- 会员 ----------------
-  listMembers: (level) => call(http.get('/members', params(level ? { level } : {}))),
+  listMembers: (level, status, keyword) => call(http.get('/members', params({
+    ...(level ? { level } : {}),
+    ...(status ? { status } : {}),
+    ...(keyword ? { keyword } : {})
+  }))),
+  getMember: (id) => call(http.get(`/members/${id}`)),
   createMember: (d) => call(http.post('/members', d)),
   updateMember: (id, d) => call(http.put(`/members/${id}`, d)),
-  addMemberPoints: (id, delta) => call(http.post(`/members/${id}/points`, null, params({ delta }))),
+  changeMemberContact: (id, d) => call(http.post(`/members/${id}/contact`, d)),
+  addMemberPoints: (id, d) => call(http.post(`/members/${id}/points`, d)),
+
+  // ---------------- 会员档案合并 / 联系方式审计 ----------------
+  listMemberMerges: (status) => call(http.get('/member-merges', params(status ? { status } : {}))),
+  getMemberMerge: (id) => call(http.get(`/member-merges/${id}`)),
+  previewMemberMerge: (masterId, aliasIds) =>
+    call(http.post('/member-merges/preview', aliasIds, { params: { masterId } })),
+  createMemberMerge: (d) => call(http.post('/member-merges', d)),
+  executeMemberMerge: (id, operator) => call(http.post(`/member-merges/${id}/execute`, { operator })),
+  revokeMemberMerge: (id, d) => call(http.post(`/member-merges/${id}/revoke`, d)),
 
   // ---------------- 出杯记录 ----------------
   listCupOrders: (status) => call(http.get('/cup-orders', params(status ? { status } : {}))),
